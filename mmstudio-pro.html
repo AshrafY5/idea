@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#101114">
+  <meta name="description" content="MM Studio is a browser-based HTML, CSS and JavaScript playground with live preview and console.">
+  <title>MM Studio — Web Playground</title>
+
+  <!-- CodeMirror 5 is used for broad compatibility. If its CDN is unavailable,
+       the app falls back to native textareas so the core tool still works. -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
+  <style>
+    :root {
+      --bg: #101114; --surface: #17181d; --surface2: #1d1f25;
+      --line: #30323b; --text: #f0f0f2; --muted: #a0a2ad;
+      --accent: #d4f36a; --accent-ink: #1b2110; --danger: #ff8e8e;
+      --radius: 13px; --mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body { margin: 0; background: var(--bg); color: var(--text); }
+    button, input, textarea { font: inherit; }
+    button {
+      cursor: pointer; color: var(--text); background: #22242b;
+      border: 1px solid #3a3c45; border-radius: 8px; padding: 9px 12px;
+      transition: background .15s ease, border-color .15s ease, transform .15s ease;
+    }
+    button:hover { background: #2a2c34; border-color: #666a76; }
+    button:active { transform: translateY(1px); }
+    button:focus-visible, a:focus-visible, input:focus-visible {
+      outline: 2px solid var(--accent); outline-offset: 2px;
+    }
+    button.primary { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); font-weight: 750; }
+    button.primary:hover { background: #e2ff8b; }
+    button.subtle { background: transparent; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .shell { max-width: 1600px; margin: 0 auto; padding: 0 25px 24px; }
+    .topbar {
+      height: 76px; display: flex; align-items: center; justify-content: space-between;
+      gap: 18px; border-bottom: 1px solid #272930; margin-bottom: 24px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .brand-mark {
+      width: 38px; height: 38px; display: grid; place-items: center; flex: 0 0 auto;
+      background: var(--accent); color: #171b10; border-radius: 10px;
+      font-size: 14px; font-weight: 950; letter-spacing: -1px;
+    }
+    .brand-name { font-weight: 800; letter-spacing: -.045em; font-size: 17px; }
+    .brand-sub { color: var(--muted); font-size: 12px; margin-top: 3px; }
+    .top-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .status { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 7px; margin-right: 7px; }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+    .hero { display: flex; justify-content: space-between; align-items: end; gap: 22px; margin: 26px 0 22px; }
+    .eyebrow { text-transform: uppercase; letter-spacing: .14em; font-size: 10px; color: var(--accent); font-weight: 800; margin-bottom: 10px; }
+    h1 { margin: 0; font-size: clamp(27px, 4vw, 42px); letter-spacing: -.06em; line-height: 1.04; }
+    .hero p { max-width: 620px; color: var(--muted); line-height: 1.6; margin: 12px 0 0; font-size: 14px; }
+    .hero-note { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 9px; padding: 10px 12px; font-size: 12px; white-space: nowrap; }
+    .toolbar {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 10px 12px; border: 1px solid var(--line); border-bottom: 0;
+      border-radius: var(--radius) var(--radius) 0 0; background: var(--surface);
+    }
+    .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .shortcut { color: #a6a8b2; font-size: 11px; }
+    kbd { border: 1px solid #41434d; border-radius: 4px; padding: 2px 5px; font: 10px var(--mono); color: #dedfe4; }
+    .workspace {
+      display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      border: 1px solid var(--line); border-radius: 0 0 var(--radius) var(--radius);
+      overflow: hidden; min-height: 640px; background: var(--surface);
+    }
+    .left, .right { min-width: 0; }
+    .left { border-right: 1px solid var(--line); display: flex; flex-direction: column; }
+    .editor-tabs { display: flex; gap: 2px; padding: 8px 10px 0; border-bottom: 1px solid var(--line); background: #141519; }
+    .editor-tab {
+      border: 0; border-radius: 7px 7px 0 0; background: transparent; color: var(--muted);
+      padding: 11px 13px; font-size: 12px; border-bottom: 2px solid transparent;
+    }
+    .editor-tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); background: var(--surface); }
+    .editor-host { min-height: 390px; flex: 1; background: #17181d; }
+    .editor-pane { display: none; height: 100%; min-height: 390px; }
+    .editor-pane.active { display: block; }
+    .CodeMirror { height: 100%; min-height: 390px; font: 13px/1.65 var(--mono); padding: 12px 0; }
+    .CodeMirror-gutters { background: #1a1b20 !important; border-right: 1px solid #30313a !important; }
+    .native-editor {
+      display: block; width: 100%; min-height: 390px; height: 100%; resize: vertical;
+      border: 0; outline: 0; padding: 20px; color: #e4e6eb; background: #17181d;
+      font: 13px/1.65 var(--mono); tab-size: 2; white-space: pre; overflow: auto;
+    }
+    .editor-footer {
+      border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px;
+      padding: 9px 13px; color: var(--muted); font-size: 11px; background: #141519;
+    }
+    .right { display: flex; flex-direction: column; min-height: 640px; }
+    .preview-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      min-height: 48px; padding: 9px 13px; border-bottom: 1px solid var(--line); background: #141519;
+    }
+    .section-title { font-size: 12px; font-weight: 800; }
+    .preview-actions { display: flex; align-items: center; gap: 6px; }
+    .preview-actions button { padding: 6px 9px; font-size: 11px; }
+    .preview-frame { width: 100%; min-height: 330px; flex: 1; border: 0; background: white; }
+    .console-wrap { border-top: 1px solid var(--line); background: #121318; }
+    .console-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 13px; border-bottom: 1px solid #2a2b33; }
+    .console-body { min-height: 115px; max-height: 175px; overflow: auto; padding: 10px 13px; font: 12px/1.65 var(--mono); }
+    .console-line { white-space: pre-wrap; overflow-wrap: anywhere; color: #d4d6df; padding: 2px 0; }
+    .console-line.error { color: var(--danger); }
+    .console-line.warn { color: #f4d17c; }
+    .console-line.success { color: var(--accent); }
+    .console-empty { color: #7c7f8b; }
+    .foot { display: flex; justify-content: space-between; gap: 14px; padding: 16px 2px 0; color: #858894; font-size: 11px; line-height: 1.5; }
+    .mobile-hint { display: none; color: var(--muted); font-size: 12px; margin-top: 12px; }
+    @media (max-width: 950px) {
+      .shell { padding: 0 14px 18px; }
+      .workspace { grid-template-columns: 1fr; }
+      .left { border-right: 0; border-bottom: 1px solid var(--line); }
+      .editor-host, .editor-pane, .CodeMirror, .native-editor { min-height: 330px; }
+      .right { min-height: 560px; }
+      .hero { align-items: flex-start; flex-direction: column; }
+      .hero-note { white-space: normal; }
+    }
+    @media (max-width: 560px) {
+      .topbar { height: auto; padding: 14px 0; align-items: flex-start; flex-direction: column; }
+      .top-actions { justify-content: flex-start; }
+      .status { width: 100%; }
+      .toolbar { align-items: flex-start; flex-direction: column; }
+      .editor-tab { padding: 10px 9px; }
+      .foot { flex-direction: column; }
+      .shortcut { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">MM</div>
+        <div>
+          <div class="brand-name">MM Studio</div>
+          <div class="brand-sub">A focused workspace for web experiments</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <span class="status"><span class="status-dot"></span><span id="engineStatus">Checking editor…</span></span>
+        <button id="exampleButton" type="button">Load example</button>
+        <button id="resetButton" type="button">Reset</button>
+        <button id="runButton" class="primary" type="button">Run preview ↗</button>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div>
+        <div class="eyebrow">MM Studio / Playground 001</div>
+        <h1>Make something<br>that works.</h1>
+        <p>A lightweight workspace to write HTML, style it with CSS, and add JavaScript behavior. Edit your code, run it in an isolated preview, and inspect console output.</p>
+      </div>
+      <div class="hero-note">Autosave on this device · No build step required</div>
+    </section>
+
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <span class="section-title">Workspace</span>
+        <span style="color:var(--muted);font-size:12px">/</span>
+        <span style="color:var(--muted);font-size:12px">untitled-project</span>
+      </div>
+      <div class="toolbar-right">
+        <span class="shortcut">Run with <kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
+        <button id="downloadButton" type="button">Export HTML</button>
+      </div>
+    </div>
+
+    <section class="workspace" aria-label="Code workspace">
+      <div class="left">
+        <div class="editor-tabs" role="tablist" aria-label="Code files">
+          <button class="editor-tab" role="tab" aria-selected="true" aria-controls="pane-html" id="tab-html" data-editor="html">index.html</button>
+          <button class="editor-tab" role="tab" aria-selected="false" aria-controls="pane-css" id="tab-css" data-editor="css">styles.css</button>
+          <button class="editor-tab" role="tab" aria-selected="false" aria-controls="pane-js" id="tab-js" data-editor="js">script.js</button>
+        </div>
+        <div class="editor-host">
+          <div class="editor-pane active" id="pane-html"><textarea class="native-editor" id="htmlSource" aria-label="HTML source" spellcheck="false"></textarea></div>
+          <div class="editor-pane" id="pane-css"><textarea class="native-editor" id="cssSource" aria-label="CSS source" spellcheck="false"></textarea></div>
+          <div class="editor-pane" id="pane-js"><textarea class="native-editor" id="jsSource" aria-label="JavaScript source" spellcheck="false"></textarea></div>
+        </div>
+        <div class="editor-footer"><span id="activeFile">index.html</span><span id="cursorInfo">Ready</span></div>
+      </div>
+
+      <div class="right">
+        <div class="preview-head">
+          <span class="section-title">Live preview</span>
+          <div class="preview-actions">
+            <button id="refreshButton" type="button">Refresh</button>
+            <button id="openButton" type="button">Open in new tab</button>
+          </div>
+        </div>
+        <iframe id="previewFrame" class="preview-frame" title="Live code preview" sandbox="allow-scripts" referrerpolicy="no-referrer"></iframe>
+        <div class="console-wrap">
+          <div class="console-head"><span class="section-title">Console</span><button id="clearConsoleButton" class="subtle" type="button">Clear</button></div>
+          <div class="console-body" id="consoleOutput" aria-live="polite"><div class="console-empty">Run the preview to see messages here.</div></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="mobile-hint">On smaller screens, the editor appears above the preview. Use the file tabs to switch between HTML, CSS and JavaScript.</p>
+    <footer class="foot">
+      <span>MM Studio · Built for quick, practical experiments.</span>
+      <span>Editor library: CodeMirror 5. If the library cannot load, plain-text editing remains available.</span>
+    </footer>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/css/css.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/htmlmixed/htmlmixed.min.js"></script>
+  <script>
+  (function () {
+    "use strict";
+
+    var starter = {
+      html: '<main class="card">\n  <p class="tag">MM STUDIO / FIRST RUN</p>\n  <h1 id="title">A small idea, working.</h1>\n  <p class="description">Change the HTML, CSS or JavaScript, then run the preview.</p>\n  <button id="actionButton" type="button">Click to interact</button>\n  <p id="result" aria-live="polite">Your experiment starts here.</p>\n</main>',
+      css: 'body {\n  margin: 0; padding: 40px 20px;\n  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;\n  background: #f2f3ed; color: #1c2118;\n}\n.card { max-width: 520px; margin: 4vh auto; padding: 34px; background: #fff; border: 1px solid #e1e4d9; border-radius: 18px; }\n.tag { color: #617b21; font-size: 11px; font-weight: 800; letter-spacing: .13em; }\nh1 { font-size: clamp(28px, 5vw, 42px); line-height: 1.05; letter-spacing: -.05em; }\n.description { color: #63685e; line-height: 1.6; }\nbutton { padding: 11px 15px; border: 0; border-radius: 8px; background: #d4f36a; color: #1b2110; font: inherit; font-weight: 750; cursor: pointer; }\nbutton:hover { background: #c3e35b; }\n#result { color: #68705d; font-size: 13px; margin-top: 18px; }',
+      js: 'var button = document.getElementById("actionButton");\nvar result = document.getElementById("result");\nvar clicks = 0;\n\nbutton.addEventListener("click", function () {\n  clicks += 1;\n  result.textContent = "It works. Click count: " + clicks;\n  console.log("Button clicked", clicks, "time(s)");\n});\n\nconsole.log("MM Studio preview is ready.");'
+    };
+
+    var sources = {
+      html: document.getElementById("htmlSource"),
+      css: document.getElementById("cssSource"),
+      js: document.getElementById("jsSource")
+    };
+    var editors = {};
+    var active = "html";
+    var preview = document.getElementById("previewFrame");
+    var consoleBox = document.getElementById("consoleOutput");
+    var engineStatus = document.getElementById("engineStatus");
+    var cursorInfo = document.getElementById("cursorInfo");
+    var debounce = null;
+    var storageKey = "mmstudio.playground.v2";
+
+    function getValue(key) {
+      return editors[key] ? editors[key].getValue() : sources[key].value;
+    }
+    function setValue(key, value) {
+      if (editors[key]) editors[key].setValue(value);
+      else sources[key].value = value;
+    }
+    function setConsole(message, type) {
+      var row = document.createElement("div");
+      row.className = "console-line" + (type ? " " + type : "");
+      row.textContent = message;
+      consoleBox.appendChild(row);
+      consoleBox.scrollTop = consoleBox.scrollHeight;
+    }
+    function clearConsole() {
+      consoleBox.textContent = "";
+    }
+    function safeJson(value) {
+      if (typeof value === "string") return value;
+      if (value instanceof Error) return value.stack || value.message;
+      try {
+        var result = JSON.stringify(value);
+        return typeof result === "undefined" ? String(value) : result;
+      } catch (error) { return String(value); }
+    }
+    function escapeClosingTag(value, tag) {
+      // Prevent user-entered closing tags from terminating the generated style/script block.
+      var pattern = new RegExp("</" + tag, "gi");
+      return value.replace(pattern, "<" + "\\\\" + "/" + tag);
+    }
+    function buildDocument() {
+      var css = escapeClosingTag(getValue("css"), "style");
+      var js = escapeClosingTag(getValue("js"), "script");
+      var body = getValue("html");
+      var closeScript = "</" + "script>";
+      var bridge = [
+        "(function(){",
+        "  function report(type,args){ parent.postMessage({__mmstudio:true,type:type,message:Array.prototype.map.call(args,function(v){try{if(v instanceof Error)return v.stack||v.message; if(typeof v==='string')return v; var j=JSON.stringify(v); return typeof j==='undefined'?String(v):j;}catch(e){return String(v);}}).join(' ')}, '*'); }",
+        "  ['log','info','warn','error'].forEach(function(type){var original=console[type]; console[type]=function(){report(type,arguments); if(original) original.apply(console,arguments);};});",
+        "  window.addEventListener('error',function(e){report('error',[e.message + (e.lineno ? ' (line '+e.lineno+')' : '')]);});",
+        "  window.addEventListener('unhandledrejection',function(e){report('error',['Unhandled promise rejection:',e.reason]);});",
+        "})();"
+      ].join("\n");
+      return '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<style>' +
+        css + '</style>\n</head>\n<body>\n' + body + '\n<script>\n' + bridge + '\n' +
+        closeScript + '\n<script>\n' + js + '\n' + closeScript + '\n</body>\n</html>';
+    }
+    function run() {
+      clearTimeout(debounce);
+      clearConsole();
+      setConsole("Running preview…", "success");
+      try {
+        preview.srcdoc = buildDocument();
+        save();
+      } catch (error) {
+        clearConsole();
+        setConsole("Could not build preview: " + error.message, "error");
+      }
+    }
+    function save() {
+      try {
+        var data = { html: getValue("html"), css: getValue("css"), js: getValue("js") };
+        window.localStorage.setItem(storageKey, JSON.stringify(data));
+      } catch (error) {
+        // Private browsing or strict local-file policies can disable storage.
+      }
+    }
+    function scheduleSave() {
+      clearTimeout(debounce);
+      debounce = setTimeout(function () {
+        save();
+        cursorInfo.textContent = "Autosaved";
+      }, 450);
+    }
+    function switchTab(key) {
+      active = key;
+      var tabs = document.querySelectorAll(".editor-tab");
+      var panes = document.querySelectorAll(".editor-pane");
+      Array.prototype.forEach.call(tabs, function (tab) {
+        var selected = tab.getAttribute("data-editor") === key;
+        tab.setAttribute("aria-selected", selected ? "true" : "false");
+      });
+      Array.prototype.forEach.call(panes, function (pane) {
+        pane.classList.toggle("active", pane.id === "pane-" + key);
+      });
+      document.getElementById("activeFile").textContent = key === "html" ? "index.html" : key === "css" ? "styles.css" : "script.js";
+      if (editors[key]) {
+        editors[key].refresh();
+        editors[key].focus();
+      } else sources[key].focus();
+    }
+    function loadStarter() {
+      setValue("html", starter.html);
+      setValue("css", starter.css);
+      setValue("js", starter.js);
+      run();
+    }
+    function exportHtml() {
+      var content = buildDocument();
+      var blob = new Blob([content], { type: "text/html;charset=utf-8" });
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement("a");
+      link.href = url;
+      link.download = "mmstudio-export.html";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    }
+
+    // Restore the last saved project when possible; otherwise use the starter.
+    var restored = false;
+    try {
+      var saved = window.localStorage.getItem(storageKey);
+      if (saved) {
+        var parsed = JSON.parse(saved);
+        if (parsed && typeof parsed.html === "string" && typeof parsed.css === "string" && typeof parsed.js === "string") {
+          sources.html.value = parsed.html; sources.css.value = parsed.css; sources.js.value = parsed.js;
+          restored = true;
+        }
+      }
+    } catch (error) {}
+    if (!restored) {
+      sources.html.value = starter.html;
+      sources.css.value = starter.css;
+      sources.js.value = starter.js;
+    }
+
+    // Enhance the textareas with CodeMirror when the CDN library is available.
+    if (window.CodeMirror) {
+      try {
+        var modes = { html: "htmlmixed", css: "css", js: "javascript" };
+        Object.keys(sources).forEach(function (key) {
+          editors[key] = window.CodeMirror.fromTextArea(sources[key], {
+            mode: modes[key], theme: "material-darker", lineNumbers: true,
+            lineWrapping: false, indentUnit: 2, tabSize: 2, indentWithTabs: false,
+            matchBrackets: true, autofocus: false, viewportMargin: 20,
+            extraKeys: { "Ctrl-Enter": run, "Cmd-Enter": run }
+          });
+          editors[key].on("change", scheduleSave);
+          editors[key].on("cursorActivity", function (editor) {
+            var pos = editor.getCursor();
+            cursorInfo.textContent = "Ln " + (pos.line + 1) + ", Col " + (pos.ch + 1);
+          });
+        });
+        engineStatus.textContent = "CodeMirror editor loaded";
+      } catch (error) {
+        editors = {};
+        engineStatus.textContent = "Basic editor fallback";
+      }
+    } else {
+      engineStatus.textContent = "Basic editor fallback";
+    }
+    Object.keys(sources).forEach(function (key) {
+      sources[key].addEventListener("input", scheduleSave);
+      sources[key].addEventListener("keydown", function (event) {
+        if (event.key === "Tab") {
+          event.preventDefault();
+          var start = sources[key].selectionStart, end = sources[key].selectionEnd;
+          sources[key].setRangeText("  ", start, end, "end");
+        }
+        if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+          event.preventDefault(); run();
+        }
+      });
+    });
+    // If CodeMirror fails to load, the native textareas remain visible and usable.
+
+    window.addEventListener("message", function (event) {
+      if (event.source !== preview.contentWindow || !event.data || event.data.__mmstudio !== true) return;
+      var first = consoleBox.firstChild;
+      if (first && first.textContent === "Running preview…") consoleBox.removeChild(first);
+      var type = event.data.type === "error" ? "error" : event.data.type === "warn" ? "warn" : "";
+      setConsole(event.data.message, type);
+    });
+
+    document.querySelectorAll(".editor-tab").forEach(function (tab) {
+      tab.addEventListener("click", function () { switchTab(tab.getAttribute("data-editor")); });
+    });
+    document.getElementById("runButton").addEventListener("click", run);
+    document.getElementById("refreshButton").addEventListener("click", run);
+    document.getElementById("exampleButton").addEventListener("click", loadStarter);
+    document.getElementById("resetButton").addEventListener("click", function () {
+      if (window.confirm("Reset all editors to the starter example?")) loadStarter();
+    });
+    document.getElementById("clearConsoleButton").addEventListener("click", clearConsole);
+    document.getElementById("downloadButton").addEventListener("click", exportHtml);
+    document.getElementById("openButton").addEventListener("click", function () {
+      var blob = new Blob([buildDocument()], { type: "text/html;charset=utf-8" });
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement("a");
+      link.href = url; link.target = "_blank"; link.rel = "noopener";
+      link.click();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+    });
+
+    run();
+  })();
+  </script>
+</body>
+</html>
